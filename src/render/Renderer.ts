@@ -12,16 +12,23 @@ export class Renderer {
   private ballLayer = new Graphics();
   private trailLayer = new Graphics();
   private burstLayer = new Graphics();
+  private flashLayer = new Graphics();
 
   /** Flat [x, y, vx, vy, msLeft, msTotal, colour] — no per-frame allocation. */
   private sparks: number[] = [];
   private trail: number[] = [];
   private shake = 0;
 
+  /** The last paddle impact: where along it, and how much life the mark has. */
+  private impactOffset = 0;
+  private impactMs = 0;
+  private flashMs = 0;
+
   constructor(app: Application) {
     app.stage.addChild(this.root);
     this.root.addChild(
-      this.brickLayer, this.trailLayer, this.paddleLayer, this.ballLayer, this.burstLayer,
+      this.brickLayer, this.trailLayer, this.paddleLayer, this.ballLayer,
+      this.burstLayer, this.flashLayer,
     );
   }
 
@@ -46,9 +53,28 @@ export class Renderer {
     }
   }
 
+  /**
+   * The ball was returned from `offset` along the paddle, -1 to 1. Marked so
+   * the player can see the thing that decided their angle — the mechanic is
+   * invisible otherwise, and a mechanic nobody notices is one nobody uses.
+   */
+  paddleHit(offset: number) {
+    this.impactOffset = offset;
+    this.impactMs = 240;
+    this.shake = Math.max(this.shake, 1.2 + Math.abs(offset) * 1.8);
+  }
+
+  /** A life went. The whole field takes the hit, not just the ball. */
+  lostLife() {
+    this.flashMs = 360;
+    this.shake = Math.max(this.shake, 9);
+  }
+
   draw(world: World, alpha: number, deltaMS: number) {
     this.tickShake(deltaMS);
     this.tickSparks(deltaMS);
+    this.impactMs = Math.max(0, this.impactMs - deltaMS);
+    this.flashMs = Math.max(0, this.flashMs - deltaMS);
 
     const bx = world.ball.prevX + (world.ball.x - world.ball.prevX) * alpha;
     const by = world.ball.prevY + (world.ball.y - world.ball.prevY) * alpha;
@@ -56,6 +82,7 @@ export class Renderer {
     this.drawBricks(world);
     this.drawPaddle(world);
     this.drawTrail(bx, by, world.docked);
+    this.drawFlash();
 
     this.ballLayer.clear();
     this.ballLayer.circle(bx, by, TUNING.ballRadius).fill({ color: PAL.ball });
@@ -77,10 +104,36 @@ export class Renderer {
 
   private drawPaddle(world: World) {
     const half = TUNING.paddleWidth / 2;
+    const t = this.impactMs / 240;
+
     this.paddleLayer.clear();
+
+    // Squashed on impact, along the axis it was hit on. Two frames of this is
+    // the difference between a bar and something the ball landed on.
+    const squash = 1 - t * 0.35;
+    const h = TUNING.paddleHeight * squash;
     this.paddleLayer
-      .roundRect(world.paddleX - half, PADDLE_Y, TUNING.paddleWidth, TUNING.paddleHeight, 5)
+      .roundRect(world.paddleX - half, PADDLE_Y + (TUNING.paddleHeight - h), TUNING.paddleWidth, h, 5)
       .fill({ color: PAL.paddle });
+
+    if (t > 0) {
+      // The impact point itself, in the ball's colour so the connection reads
+      // without being explained. Off centre it is the angle you just bought.
+      const x = world.paddleX + this.impactOffset * half;
+      this.paddleLayer
+        .circle(x, PADDLE_Y + TUNING.paddleHeight / 2, 3 + t * 5)
+        .fill({ color: PAL.ball, alpha: t });
+    }
+  }
+
+  /** A red wash over the field when a life goes. Brief, and hard to miss. */
+  private drawFlash() {
+    this.flashLayer.clear();
+    if (this.flashMs <= 0) return;
+    const t = this.flashMs / 360;
+    this.flashLayer
+      .rect(0, 0, FIELD.width, FIELD.height)
+      .fill({ color: 0xff5c5c, alpha: t * t * 0.28 });
   }
 
   /**

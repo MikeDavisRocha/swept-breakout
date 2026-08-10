@@ -184,6 +184,30 @@ describe("the paddle", () => {
     }
   });
 
+  /**
+   * The contact reports the impact point, and the sound and the mark on the
+   * paddle are both drawn from it. If it ever disagreed with the angle actually
+   * imparted, the game would be teaching the player something false — the pan
+   * would say one thing and the ball would do another.
+   */
+  it("reports an impact point that matches the angle it imparted", () => {
+    for (let want = -0.9; want <= 0.9; want += 0.15) {
+      const world = new World(1);
+      world.launch();
+      world.ball.x = world.paddleX + want * (TUNING.paddleWidth / 2);
+      world.ball.y = PADDLE_Y - TUNING.ballRadius - 2;
+      world.ball.vx = 0;
+      world.ball.vy = 400;
+      world.step(DT, world.paddleX);
+
+      const contact = world.contacts.find((c) => c.surface === "paddle");
+      expect(contact?.offset).toBeCloseTo(want, 6);
+
+      const angle = Math.atan2(world.ball.vy, world.ball.vx) + Math.PI / 2;
+      expect(angle).toBeCloseTo(contact!.offset! * TUNING.paddleSpread, 6);
+    }
+  });
+
   it("chases the pointer at a finite speed rather than snapping to it", () => {
     const world = new World(1);
     const start = world.paddleX;

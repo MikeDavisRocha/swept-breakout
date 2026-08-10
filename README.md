@@ -74,9 +74,27 @@ end. A floor on the vertical share of its velocity prevents it.
 Both preserve speed and both are pure functions of the state at contact, so
 neither can pump energy into the ball and neither breaks replay.
 
+## Feel
+
+The paddle's angle mechanic is the game, and it is the one thing a player
+cannot see happening — the ball simply leaves at an angle. So the presentation
+layer exists to teach it: **the paddle's sound is panned and pitched to the
+impact point**, and the point itself is marked on the paddle in the ball's own
+colour as it squashes. Catch the ball on the left and you hear it on the left.
+Nobody has to be told they can aim.
+
+Bricks are pitched by row, so clearing a board top-down walks down the scale.
+A brick that cracks without dying sounds duller and lower than one that breaks,
+because otherwise a two-hit brick reads as a bug the first time it happens.
+
+All of it is synthesised at runtime — no files, no fetch, nothing to 404 — and
+none of it can reach the simulation. A test pins that the impact point reported
+to the audio is exactly the one that produced the angle, so the game cannot end
+up teaching the player something false.
+
 ## Tests
 
-23, and two of them carry the project:
+24, and two of them carry the project:
 
 - the ball never leaves the field across 40 seeds at **9000 px/s**, where a
   position-sampling test would leak it through a wall within seconds
@@ -102,3 +120,11 @@ npm test
 ## Stack
 
 Pixi.js v8 · TypeScript · Vite · Vitest
+
+## Also
+
+**[Deterministic Plinko](https://github.com/MikeDavisRocha/deterministic-plinko)**
+— the same discipline pointed at a different problem: a hand-written solver
+measured over 100 million headless drops, and two payout tables reaching one RTP
+by opposite routes. Where this project's hard part is collision, that one's is
+the mathematics.

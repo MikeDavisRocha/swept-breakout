@@ -1,4 +1,5 @@
 import { Application } from "pixi.js";
+import { Sfx } from "./audio/Sfx";
 import { Loop } from "./core/Loop";
 import { DT, FIELD } from "./sim/config";
 import { World } from "./sim/World";
@@ -51,6 +52,24 @@ async function boot() {
   const renderer = new Renderer(app);
   const loop = new Loop(DT);
 
+  const sfx = new Sfx();
+  sfx.muted = localStorage.getItem("breakout.muted") === "1";
+
+  const muteBtn = document.getElementById("mute") as HTMLButtonElement;
+  const paintMute = () => (muteBtn.textContent = sfx.muted ? "sound: off" : "sound: on");
+  muteBtn.onclick = () => {
+    sfx.muted = !sfx.muted;
+    localStorage.setItem("breakout.muted", sfx.muted ? "1" : "0");
+    paintMute();
+  };
+  paintMute();
+
+  // Audio cannot start before a gesture, so the context waits for the first
+  // one rather than being built suspended at boot and never recovering.
+  const unlock = () => sfx.unlock();
+  addEventListener("pointerdown", unlock, { once: true });
+  addEventListener("keydown", unlock, { once: true });
+
   let world = new World(Math.floor(Math.random() * 1e9));
   /** The player's input, in field coordinates. One number per step. */
   let targetX = FIELD.width / 2;
@@ -75,20 +94,44 @@ async function boot() {
   });
 
   const act = () => {
-    if (world.lost || world.cleared) world = new World(Math.floor(Math.random() * 1e9));
-    else world.launch();
+    if (world.lost || world.cleared) {
+      world = new World(Math.floor(Math.random() * 1e9));
+    } else if (world.docked) {
+      world.launch();
+      sfx.launch();
+    }
   };
 
   app.ticker.add((ticker) => {
+    const wasCleared = world.cleared;
+
     const alpha = loop.advance(ticker.deltaMS / 1000, () => {
       world.step(DT, targetX);
       // Read contacts inside the step: physics runs at 120 Hz and rendering at
       // 60, and contacts are cleared per step, so a per-frame read would miss
-      // every second brick.
+      // every second brick the ball touched.
       for (const c of world.contacts) {
-        if (c.broken && c.brick) renderer.burst(c.x, c.y, c.brick.row);
+        switch (c.surface) {
+          case "brick":
+            if (c.broken && c.brick) renderer.burst(c.x, c.y, c.brick.row);
+            if (c.brick) sfx.brick(c.brick.row, !!c.broken, c.speed);
+            break;
+          case "paddle":
+            renderer.paddleHit(c.offset ?? 0);
+            sfx.paddle(c.offset ?? 0, c.speed);
+            break;
+          case "wall":
+            sfx.wall(c.speed);
+            break;
+          case "floor":
+            renderer.lostLife();
+            sfx.lost();
+            break;
+        }
       }
     });
+
+    if (!wasCleared && world.cleared) sfx.cleared();
 
     renderer.draw(world, alpha, ticker.deltaMS);
 

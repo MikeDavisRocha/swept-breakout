@@ -13,7 +13,7 @@ export interface Brick {
   hp: number;
 }
 
-export type Surface = "wall" | "paddle" | "brick";
+export type Surface = "wall" | "paddle" | "brick" | "floor";
 
 /** What the step just did, for the renderer and the audio to react to. */
 export interface Contact {
@@ -24,6 +24,13 @@ export interface Contact {
   /** Set when a brick was hit; broken says whether it died. */
   readonly brick?: Brick;
   readonly broken?: boolean;
+  /**
+   * Where along the paddle the ball landed, -1 at the left edge to +1 at the
+   * right. Reported because it is the game's central mechanic and the only
+   * one a player cannot see happening — the presentation layer exists to make
+   * it audible and visible. See ADR 0002.
+   */
+  readonly offset?: number;
 }
 
 export class World {
@@ -181,8 +188,8 @@ export class World {
       this.ball.x += hit.nx * CONTACT_EPSILON;
       this.ball.y += hit.ny * CONTACT_EPSILON;
 
-      if (surface === "paddle") this.bounceOffPaddle();
-      else this.reflect(hit.nx, hit.ny);
+      const offset = surface === "paddle" ? this.bounceOffPaddle() : undefined;
+      if (surface !== "paddle") this.reflect(hit.nx, hit.ny);
 
       let broken = false;
       if (brick) {
@@ -202,6 +209,7 @@ export class World {
         speed: Math.sqrt(this.ball.vx ** 2 + this.ball.vy ** 2),
         brick,
         broken,
+        offset,
       });
 
       remaining -= remaining * hit.t;
@@ -286,7 +294,7 @@ export class World {
    * This is the one place the simulation is overruled on purpose, and it is
    * what turns the paddle from a wall into a control. See ADR 0002.
    */
-  private bounceOffPaddle() {
+  private bounceOffPaddle(): number {
     const half = this.tuning.paddleWidth / 2;
     const offset = clamp((this.ball.x - this.paddleX) / half, -1, 1);
     const angle = -Math.PI / 2 + offset * this.tuning.paddleSpread;
@@ -294,6 +302,7 @@ export class World {
 
     this.ball.vx = Math.cos(angle) * speed;
     this.ball.vy = Math.sin(angle) * speed;
+    return offset;
   }
 
   private accelerate() {
@@ -305,6 +314,12 @@ export class World {
   }
 
   private loseLife() {
+    this.contacts.push({
+      surface: "floor",
+      x: this.ball.x,
+      y: FIELD.height,
+      speed: Math.sqrt(this.ball.vx ** 2 + this.ball.vy ** 2),
+    });
     this.lives--;
     if (this.lives > 0) this.dock();
   }

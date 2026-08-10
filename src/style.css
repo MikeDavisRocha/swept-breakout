@@ -48,4 +48,18 @@ body {
 
 #hud b { color: var(--text-hi); font-weight: 500; }
 
+#mute {
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+#mute:hover { border-color: var(--accent); color: var(--accent); }
+
 #hint { margin: 0; color: var(--line); letter-spacing: 0.06em; }
