@@ -1,5 +1,7 @@
 # Swept Breakout
 
+**[Play it →](https://mikedavisrocha.github.io/swept-breakout/)**
+
 ![The board](docs/screenshot.jpg)
 
 A breakout in **Pixi.js v8** built on continuous collision detection. The ball's
