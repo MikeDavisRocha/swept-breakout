@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Swept Breakout</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b0f14'/><rect x='5' y='7' width='9' height='4' rx='1' fill='%23ff5c5c'/><rect x='17' y='7' width='9' height='4' rx='1' fill='%23f5a524'/><circle cx='16' cy='19' r='3' fill='%23f5a524'/><rect x='9' y='25' width='14' height='3' rx='1.5' fill='%23dfe6ee'/></svg>"
+    />
+    <meta
+      name="description"
+      content="A breakout built on continuous collision detection: the ball's path is swept against every surface, so no brick is ever shot through however fast the ball gets."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <main id="app">
+      <div id="stage"></div>
+      <div id="hud">
+        <span>score <b id="r-score">0</b></span>
+        <span>lives <b id="r-lives">3</b></span>
+        <span>bricks <b id="r-bricks">48</b></span>
+        <span>speed <b id="r-speed">0</b></span>
+        <span>fps <b id="r-fps">—</b></span>
+      </div>
+      <p id="hint">move to aim · click or tap to launch</p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
