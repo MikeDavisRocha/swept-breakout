@@ -1,5 +1,7 @@
 # Swept Breakout
 
+[![ci](https://github.com/MikeDavisRocha/swept-breakout/actions/workflows/ci.yml/badge.svg)](https://github.com/MikeDavisRocha/swept-breakout/actions/workflows/ci.yml)
+
 **[Play it →](https://mikedavisrocha.github.io/swept-breakout/)**
 
 ![The board](docs/screenshot.jpg)
