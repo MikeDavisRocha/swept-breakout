@@ -1,7 +1,7 @@
 import { mulberry32 } from "../core/Rng";
 import {
-  BRICKS, BRICK_LEFT, CONTACT_EPSILON, FIELD, MAX_CONTACTS_PER_STEP,
-  PADDLE_Y, TUNING, Tuning,
+  BRICKS, BRICK_LEFT, CONTACT_EPSILON, FIELD, LAUNCH_LEAN_SHARE,
+  MAX_CONTACTS_PER_STEP, PADDLE_Y, TUNING, Tuning,
 } from "./config";
 import { cellsOf, LEVELS } from "./levels";
 import { Box, sweepCircleBox } from "./sweep";
@@ -153,10 +153,24 @@ export class World {
   launch() {
     if (!this.docked) return;
     this.docked = false;
-    const lean = (this.rng() - 0.5) * 0.5;
-    const angle = -Math.PI / 2 + lean;
-    this.ball.vx = Math.cos(angle) * this.levelSpeed;
-    this.ball.vy = Math.sin(angle) * this.levelSpeed;
+    this.aimUpward((this.rng() - 0.5) * 2 * LAUNCH_LEAN_SHARE, this.levelSpeed);
+  }
+
+  /**
+   * Point the ball upward, `shareX` of its speed to the side.
+   *
+   * Built from a square root rather than from sine and cosine, and that is not
+   * a micro-optimisation: sin and cos are implementation-approximated and the
+   * engines disagree on them, while sqrt is exactly specified by IEEE 754. Both
+   * places the ball's direction is set go through here, so the whole solver
+   * reproduces bit for bit on any engine. ADR 0003 has the measurement that
+   * forced this.
+   */
+  private aimUpward(shareX: number, speed: number) {
+    const x = clamp(shareX, -1, 1);
+    const y = -Math.sqrt(Math.max(0, 1 - x * x));
+    this.ball.vx = x * speed;
+    this.ball.vy = y * speed;
   }
 
   private savePrev() {
@@ -353,11 +367,9 @@ export class World {
   private bounceOffPaddle(): number {
     const half = this.paddleWidth / 2;
     const offset = clamp((this.ball.x - this.paddleX) / half, -1, 1);
-    const angle = -Math.PI / 2 + offset * this.tuning.paddleSpread;
     const speed = Math.sqrt(this.ball.vx ** 2 + this.ball.vy ** 2);
 
-    this.ball.vx = Math.cos(angle) * speed;
-    this.ball.vy = Math.sin(angle) * speed;
+    this.aimUpward(offset * this.tuning.paddleSpreadShare, speed);
     return offset;
   }
 

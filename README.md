@@ -52,8 +52,17 @@ trusted state.
 
 Pinned by a hash over the raw float bit patterns rather than printed numbers,
 because two engines that disagree by one ULP produce identical output to six
-decimals and differ where it matters. `Math.hypot` is avoided for the same
-reason: it is implementation-approximated and the engines disagree.
+decimals and differ where it matters.
+
+**And that claim is checked rather than asserted.** `npm run cross-engine`
+recomputes the committed hash inside Chromium, Firefox and WebKit — V8,
+SpiderMonkey and JavaScriptCore — and CI fails if any of them disagrees. The
+first time it ran, it found the claim was false: the solver was converting
+angles to directions with `Math.sin` and `Math.cos`, which are
+implementation-approximated, so a rally diverged the moment it left V8. Both are
+now gone from the simulation, and directions are built from `Math.sqrt`, which
+IEEE 754 specifies exactly. [ADR 0003](docs/adr/0003-trigonometry-is-not-reproducible-square-roots-are.md)
+has the four different hashes it produced before the fix.
 
 ## Two places the simulation is overruled
 
@@ -130,6 +139,7 @@ npm test
 
 1. [The path is what gets tested, not the position](docs/adr/0001-the-path-is-what-gets-tested.md)
 2. [Two places the simulation is overruled, on purpose](docs/adr/0002-two-places-the-simulation-is-overruled.md)
+3. [Trigonometry is not reproducible; square roots are](docs/adr/0003-trigonometry-is-not-reproducible-square-roots-are.md)
 
 ## Stack
 

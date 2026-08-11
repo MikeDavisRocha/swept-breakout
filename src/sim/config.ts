@@ -26,10 +26,19 @@ export interface Tuning {
   readonly paddleSpeed: number;
 
   /**
-   * Widest angle off vertical the paddle can impart, in radians. Under 90
-   * degrees by construction: a ball leaving horizontally never comes back.
+   * Widest share of the ball's speed the paddle can send sideways, at its
+   * edges. 0.866 is sixty degrees off vertical.
+   *
+   * Expressed as a share rather than as an angle, and written out as a literal
+   * rather than computed from `Math.sin`, because the direction is then built
+   * with `Math.sqrt` alone. Sine and cosine are implementation-approximated and
+   * the engines disagree on them; square root is exactly specified by IEEE 754
+   * and every engine returns the same bits. That difference is what makes a
+   * replay survive a change of browser — see ADR 0003.
+   *
+   * Under 1 by construction: a ball sent perfectly sideways never comes back.
    */
-  readonly paddleSpread: number;
+  readonly paddleSpreadShare: number;
 
   /**
    * Least share of the ball's speed that must be vertical, after any bounce.
@@ -52,9 +61,16 @@ export const TUNING: Tuning = {
   paddleHeight: 12,
   paddleSpeed: 900,
 
-  paddleSpread: (60 * Math.PI) / 180,
+  // sin(60°), to the precision a double holds. A literal, not a computation.
+  paddleSpreadShare: 0.8660254037844386,
   minVerticalShare: 0.22,
 };
+
+/**
+ * How far off vertical a fresh ball may lean, as a share of its speed. Small:
+ * the launch should feel like a serve, not a scattering.
+ */
+export const LAUNCH_LEAN_SHARE = 0.24;
 
 export const PADDLE_Y = FIELD.height - 64;
 

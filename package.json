@@ -9,14 +9,17 @@
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "cross-engine": "node scripts/cross-engine.mjs"
   },
   "dependencies": {
     "pixi.js": "^8.6.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "esbuild": "^0.28.2",
     "gh-pages": "^6.3.0",
+    "playwright": "^1.62.1",
     "typescript": "~5.6.0",
     "vite": "^6.0.0",
     "vitest": "^4.1.10"

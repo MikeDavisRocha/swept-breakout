@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hashFloats } from "../core/hash";
+import { mulberry32 } from "../core/Rng";
 import { DT, FIELD, PADDLE_Y, TUNING, Tuning } from "../sim/config";
 import { World } from "../sim/World";
 
@@ -106,10 +107,24 @@ describe("replay", () => {
     return { hash: hashFloats(trace), score: world.score, bricks: world.bricksLeft };
   };
 
-  // A fixed, wandering input stream — no randomness, so the case is a constant.
-  const inputs = Array.from({ length: 2500 }, (_, i) =>
-    FIELD.width / 2 + Math.sin(i / 37) * 160 + Math.sin(i / 7) * 40,
-  );
+  /**
+   * A fixed, wandering input stream, driven by the seeded PRNG rather than by
+   * `Math.sin`.
+   *
+   * That is not a style preference. Sine is implementation-approximated, so an
+   * input stream built from it is a *different* stream on a different engine —
+   * and the hash below would then be testing the browser's trigonometry as much
+   * as the game. mulberry32 is integer arithmetic and division by a power of
+   * two, identical everywhere.
+   */
+  const inputs = (() => {
+    const rng = mulberry32(20260810);
+    let x = FIELD.width / 2;
+    return Array.from({ length: 2500 }, () => {
+      x += (rng() - 0.5) * 26;
+      return Math.max(0, Math.min(FIELD.width, x));
+    });
+  })();
 
   it("reproduces a run from its seed and inputs alone", () => {
     const first = record(4242, inputs);
@@ -129,7 +144,7 @@ describe("replay", () => {
 
   /** The committed trajectory. Run it under a second engine to close the loop. */
   it("matches its committed hash", () => {
-    expect(record(4242, inputs).hash).toBe("853ae585");
+    expect(record(4242, inputs).hash).toBe("2e3ef8ad");
   });
 });
 
@@ -156,7 +171,10 @@ describe("the paddle", () => {
 
   /**
    * The edges are the control: they impart the full spread, which is what lets
-   * a player aim rather than merely survive.
+   * a player aim rather than merely survive. Asserted as a share of speed
+   * rather than as an angle, because a share is what the solver actually works
+   * in — going through `atan2` here would test the engine's trigonometry
+   * instead of the game.
    */
   it("sends an edge hit out at the spread limit", () => {
     const world = new World(1);
@@ -167,8 +185,9 @@ describe("the paddle", () => {
     world.ball.vy = 400;
     world.step(DT, world.paddleX);
 
-    const angle = Math.atan2(world.ball.vy, world.ball.vx) + Math.PI / 2;
-    expect(angle).toBeCloseTo(TUNING.paddleSpread, 3);
+    const speed = Math.sqrt(world.ball.vx ** 2 + world.ball.vy ** 2);
+    expect(world.ball.vx / speed).toBeCloseTo(TUNING.paddleSpreadShare, 9);
+    expect(world.ball.vy).toBeLessThan(0);
   });
 
   it("never returns a ball flat, so a rally can always continue", () => {
@@ -203,8 +222,11 @@ describe("the paddle", () => {
       const contact = world.contacts.find((c) => c.surface === "paddle");
       expect(contact?.offset).toBeCloseTo(want, 6);
 
-      const angle = Math.atan2(world.ball.vy, world.ball.vx) + Math.PI / 2;
-      expect(angle).toBeCloseTo(contact!.offset! * TUNING.paddleSpread, 6);
+      const speed = Math.sqrt(world.ball.vx ** 2 + world.ball.vy ** 2);
+      expect(world.ball.vx / speed).toBeCloseTo(
+        contact!.offset! * TUNING.paddleSpreadShare,
+        9,
+      );
     }
   });
 
