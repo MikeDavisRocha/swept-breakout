@@ -92,9 +92,23 @@ none of it can reach the simulation. A test pins that the impact point reported
 to the audio is exactly the one that produced the angle, so the game cannot end
 up teaching the player something false.
 
+## Five boards
+
+Layouts are drawn rather than described — each row is a line of source and each
+character a brick, so the code looks like the board it makes. They ramp: each
+one opens faster and hands over a narrower paddle, both bounded, because an
+unbounded ramp stops being difficulty and becomes a wall.
+
+Every board is tested to be clearable. That test is more interesting than it
+sounds: a paddle that tracks the ball *exactly* returns it dead centre every
+time, which sends it straight up, and a perfectly vertical rally never reaches
+the sides — so a "perfect" player clears nothing. The driver has to return the
+ball off centre on a slow sweep, which is both what makes the test work and a
+fair description of how the game is played.
+
 ## Tests
 
-24, and two of them carry the project:
+35, and two of them carry the project:
 
 - the ball never leaves the field across 40 seeds at **9000 px/s**, where a
   position-sampling test would leak it through a wall within seconds

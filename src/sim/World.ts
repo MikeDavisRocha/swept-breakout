@@ -3,14 +3,24 @@ import {
   BRICKS, BRICK_LEFT, CONTACT_EPSILON, FIELD, MAX_CONTACTS_PER_STEP,
   PADDLE_Y, TUNING, Tuning,
 } from "./config";
+import { cellsOf, LEVELS } from "./levels";
 import { Box, sweepCircleBox } from "./sweep";
+
+/** Each board opens 6% faster than the one before, floored by the ceiling. */
+const LEVEL_SPEED_STEP = 1.06;
+/** And with a slightly narrower paddle, which is the other half of the ramp. */
+const PADDLE_SHRINK_STEP = 0.94;
+/** Below this the paddle stops being a control and starts being a lottery. */
+const MIN_PADDLE_WIDTH = 62;
 
 export interface Brick {
   readonly box: Box;
   readonly row: number;
   readonly col: number;
-  /** Hits left before it breaks. Rows nearer the top take more. */
+  /** Hits left before it breaks. */
   hp: number;
+  /** What it started at, so damage can be drawn as a fraction of it. */
+  readonly maxHp: number;
 }
 
 export type Surface = "wall" | "paddle" | "brick" | "floor";
@@ -52,7 +62,12 @@ export class World {
 
   private readonly rng: () => number;
 
-  constructor(readonly seed: number, readonly tuning: Tuning = TUNING) {
+  constructor(
+    readonly seed: number,
+    readonly tuning: Tuning = TUNING,
+    /** Which board to start on. Only the tests ever pass anything but 0. */
+    public level = 0,
+  ) {
     this.rng = mulberry32(seed);
     this.buildLevel();
     this.dock();
@@ -66,30 +81,63 @@ export class World {
     return this.bricks.length === 0;
   }
 
+  /** Cleared the last board. There is nothing after this but a new game. */
+  get finished(): boolean {
+    return this.cleared && this.level >= LEVELS.length - 1;
+  }
+
   get lost(): boolean {
     return this.lives <= 0;
   }
 
+  /**
+   * Move to the next board, keeping score and lives. The ball starts a little
+   * faster each time: within a board the speed climbs as bricks break, and
+   * across boards the floor it climbs from rises too, so board five opens at a
+   * pace board one only reached at the end.
+   */
+  nextLevel() {
+    if (this.finished) return;
+    this.level++;
+    this.bricks.length = 0;
+    this.buildLevel();
+    this.dock();
+  }
+
+  /** Speed this board launches at, and the paddle the player gets to do it with. */
+  get levelSpeed(): number {
+    return Math.min(
+      this.tuning.ballSpeedMax,
+      this.tuning.ballSpeed * LEVEL_SPEED_STEP ** this.level,
+    );
+  }
+
+  get paddleWidth(): number {
+    return Math.max(
+      MIN_PADDLE_WIDTH,
+      this.tuning.paddleWidth * PADDLE_SHRINK_STEP ** this.level,
+    );
+  }
+
   private buildLevel() {
-    for (let row = 0; row < BRICKS.rows; row++) {
-      for (let col = 0; col < BRICKS.cols; col++) {
-        const x0 = BRICK_LEFT + col * (BRICKS.width + BRICKS.gap);
-        const y0 = BRICKS.top + row * (BRICKS.height + BRICKS.gap);
-        this.bricks.push({
-          box: { x0, y0, x1: x0 + BRICKS.width, y1: y0 + BRICKS.height },
-          row,
-          col,
-          // Two rows of tougher bricks at the top, so clearing works downward
-          // and the last bricks standing are the awkward ones.
-          hp: row < 2 ? 2 : 1,
-        });
-      }
+    for (const cell of cellsOf(this.level)) {
+      const x0 = BRICK_LEFT + cell.col * (BRICKS.width + BRICKS.gap);
+      const y0 = BRICKS.top + cell.row * (BRICKS.height + BRICKS.gap);
+      this.bricks.push({
+        box: { x0, y0, x1: x0 + BRICKS.width, y1: y0 + BRICKS.height },
+        row: cell.row,
+        col: cell.col,
+        hp: cell.hp,
+        maxHp: cell.hp,
+      });
     }
   }
 
   /** Park the ball on the paddle, waiting for a launch. */
   private dock() {
     this.docked = true;
+    // A narrower paddle can leave the old position hanging off the edge.
+    this.clampPaddleToField();
     this.ball.x = this.paddleX;
     this.ball.y = PADDLE_Y - this.tuning.ballRadius - 1;
     this.ball.vx = 0;
@@ -107,8 +155,8 @@ export class World {
     this.docked = false;
     const lean = (this.rng() - 0.5) * 0.5;
     const angle = -Math.PI / 2 + lean;
-    this.ball.vx = Math.cos(angle) * this.tuning.ballSpeed;
-    this.ball.vy = Math.sin(angle) * this.tuning.ballSpeed;
+    this.ball.vx = Math.cos(angle) * this.levelSpeed;
+    this.ball.vy = Math.sin(angle) * this.levelSpeed;
   }
 
   private savePrev() {
@@ -127,8 +175,8 @@ export class World {
 
     this.paddleTarget = clamp(
       targetX,
-      this.tuning.paddleWidth / 2,
-      FIELD.width - this.tuning.paddleWidth / 2,
+      this.paddleWidth / 2,
+      FIELD.width - this.paddleWidth / 2,
     );
     this.movePaddle(dt);
 
@@ -156,13 +204,21 @@ export class World {
   }
 
   private paddleBox(): Box {
-    const half = this.tuning.paddleWidth / 2;
+    const half = this.paddleWidth / 2;
     return {
       x0: this.paddleX - half,
       y0: PADDLE_Y,
       x1: this.paddleX + half,
       y1: PADDLE_Y + this.tuning.paddleHeight,
     };
+  }
+
+  private clampPaddleToField() {
+    this.paddleX = clamp(
+      this.paddleX,
+      this.paddleWidth / 2,
+      FIELD.width - this.paddleWidth / 2,
+    );
   }
 
   /**
@@ -295,7 +351,7 @@ export class World {
    * what turns the paddle from a wall into a control. See ADR 0002.
    */
   private bounceOffPaddle(): number {
-    const half = this.tuning.paddleWidth / 2;
+    const half = this.paddleWidth / 2;
     const offset = clamp((this.ball.x - this.paddleX) / half, -1, 1);
     const angle = -Math.PI / 2 + offset * this.tuning.paddleSpread;
     const speed = Math.sqrt(this.ball.vx ** 2 + this.ball.vy ** 2);

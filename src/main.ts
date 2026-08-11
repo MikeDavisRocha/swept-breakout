@@ -2,6 +2,7 @@ import { Application } from "pixi.js";
 import { Sfx } from "./audio/Sfx";
 import { Loop } from "./core/Loop";
 import { DT, FIELD } from "./sim/config";
+import { LEVELS } from "./sim/levels";
 import { World } from "./sim/World";
 import { Renderer } from "./render/Renderer";
 import { PAL } from "./render/palette";
@@ -94,8 +95,13 @@ async function boot() {
   });
 
   const act = () => {
-    if (world.lost || world.cleared) {
+    // Order matters: a finished game restarts, a cleared board advances, and
+    // only then does a tap mean "launch". Checking cleared first would make the
+    // last board restart the game instead of ending it.
+    if (world.lost || world.finished) {
       world = new World(Math.floor(Math.random() * 1e9));
+    } else if (world.cleared) {
+      world.nextLevel();
     } else if (world.docked) {
       world.launch();
       sfx.launch();
@@ -135,6 +141,7 @@ async function boot() {
 
     renderer.draw(world, alpha, ticker.deltaMS);
 
+    readout("level", `${world.level + 1}/${LEVELS.length}`);
     readout("score", String(world.score));
     readout("lives", String(Math.max(0, world.lives)));
     readout("bricks", String(world.bricksLeft));
@@ -143,12 +150,14 @@ async function boot() {
 
     const hint = document.getElementById("hint")!;
     hint.textContent = world.lost
-      ? "out of lives · click or tap to start again"
-      : world.cleared
-        ? `cleared with ${world.score} · click or tap to start again`
-        : world.docked
-          ? "move to aim · click or tap to launch"
-          : "";
+      ? `out of lives on board ${world.level + 1} · ${world.score} · tap to start again`
+      : world.finished
+        ? `all five boards cleared · ${world.score} · tap to start again`
+        : world.cleared
+          ? `board ${world.level + 1} cleared · tap for the next one`
+          : world.docked
+            ? "move to aim · click or tap to launch"
+            : "";
   });
 }
 

@@ -92,28 +92,40 @@ export class Renderer {
     this.brickLayer.clear();
     for (const brick of world.bricks) {
       const { x0, y0, x1, y1 } = brick.box;
+      // Damage as a fraction of what the brick started at, so a three-hit
+      // brick reads as tougher than a two-hit one at a glance — the layouts
+      // mix them, and the player has to be able to see which is which.
+      const wear = brick.hp / brick.maxHp;
       this.brickLayer
         .roundRect(x0, y0, x1 - x0, y1 - y0, 3)
         .fill({
           color: BRICK_ROW[brick.row % BRICK_ROW.length],
-          // Rows that start with 2 hp show their damage by dimming.
-          alpha: brick.row < 2 && brick.hp === 1 ? CRACKED_ALPHA : 1,
+          alpha: CRACKED_ALPHA + (1 - CRACKED_ALPHA) * wear,
         });
+
+      // A tough brick still at full health gets an inner outline: alpha alone
+      // cannot say "this one takes three" before you have hit it once.
+      if (brick.maxHp > 1 && brick.hp === brick.maxHp) {
+        this.brickLayer
+          .roundRect(x0 + 3, y0 + 3, x1 - x0 - 6, y1 - y0 - 6, 2)
+          .stroke({ width: 1, color: 0x0b0f14, alpha: 0.5 });
+      }
     }
   }
 
   private drawPaddle(world: World) {
-    const half = TUNING.paddleWidth / 2;
+    const width = world.paddleWidth;
+    const half = width / 2;
     const t = this.impactMs / 240;
 
     this.paddleLayer.clear();
 
-    // Squashed on impact, along the axis it was hit on. Two frames of this is
-    // the difference between a bar and something the ball landed on.
+    // Squashed on impact. Two frames of this is the difference between a bar
+    // and something the ball landed on.
     const squash = 1 - t * 0.35;
     const h = TUNING.paddleHeight * squash;
     this.paddleLayer
-      .roundRect(world.paddleX - half, PADDLE_Y + (TUNING.paddleHeight - h), TUNING.paddleWidth, h, 5)
+      .roundRect(world.paddleX - half, PADDLE_Y + (TUNING.paddleHeight - h), width, h, 5)
       .fill({ color: PAL.paddle });
 
     if (t > 0) {
